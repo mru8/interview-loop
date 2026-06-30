@@ -25,7 +25,7 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Invalid email or password' }, { status:401 });
         }
 
-        const passwordMatched = await bcrypt.compare(password, user.password_hash);
+        const passwordMatches = await bcrypt.compare(password, user.password_hash);
         if (!passwordMatches) {
             return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
         }
@@ -41,7 +41,7 @@ export async function POST(request) {
             token,
             user: {
                 id: user.id,
-                name: user,name,
+                name: user.name,
                 email: user.email,
                 job_role: user.job_role,
                 experience_level: user.experience_level,
