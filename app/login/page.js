@@ -17,7 +17,7 @@ export default function LoginPage() {
             body: JSON.stringify({ email, password }),
         });
 
-        const data = await res.join();
+        const data = await res.json();
 
         if (!res.ok) {
             setError(data.error || 'Login failed');
@@ -29,7 +29,7 @@ export default function LoginPage() {
     };
     
     return (
-        <div style={{ macWidth: 400, margin: '80px auto', fontFamily: 'sans-serif'}}>
+        <div style={{ maxWidth: 400, margin: '80px auto', fontFamily: 'sans-serif'}}>
             <h2>Login</h2>
             <input
                 type="email"
@@ -43,10 +43,10 @@ export default function LoginPage() {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={inputstyle}
+                style={inputStyle}
             />
             <button onClick={handleLogin} style={btnStyle}>Login</button>
-            {error && <p style={{ color: 'red' }}>error</p>}
+            {error && <p style={{ color: 'red' }}>{error}</p>}
         </div>
     );
 }
