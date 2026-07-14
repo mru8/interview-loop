@@ -11,11 +11,20 @@ export default function InterviewPage() {
   const sessionIdRef = useRef(null);
 
   const startInterview = async () => {
+    // unlock audio playback immediately on click, before any async gap
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state == 'suspended') {
+        await audioCtx.resume();
+      }
+    } catch (e) {
+      console.log('Audio unlock faileed (non-critical):', e);
+    }
+    
     setError('');
     setStatus('connecting');
 
     try {
-      // 1. Get token from localStorage (set this during login)
       const token = localStorage.getItem('token');
       if (!token) {
         setError('You need to log in first.');
