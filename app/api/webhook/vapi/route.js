@@ -56,23 +56,21 @@ Return ONLY valid JSON, no markdown, no code fences, in this exact shape:
 Transcript:
 ${conversation}`;
 
-            const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'gpt-4o',
-                messages: [{ role: 'user', content: feedbackPrompt }],
-                temperature: 0.4,
-              }),
-            });
+            const geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: feedbackPrompt }] }],
+                }),
+              }
+            );
 
-            const openaiData = await openaiRes.json();
+            const geminiData = await geminiRes.json();
 
-            if (openaiRes.ok) {
-              let raw = openaiData.choices[0].message.content.trim();
+            if (geminiRes.ok) {
+              let raw = geminiData.candidates[0].content.parts[0].text.trim();
               raw = raw.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
               const feedback = JSON.parse(raw);
 
@@ -82,7 +80,7 @@ ${conversation}`;
                 [sessionId, feedback.summary, feedback.strengths, feedback.weaknesses, feedback.score]
               );
             } else {
-              console.error('OpenAI feedback generation failed:', openaiData);
+              console.error('Gemini feedback generation failed:', geminiData);
             }
           } catch (feedbackErr) {
             console.error('FEEDBACK GENERATION ERROR:', feedbackErr.message, feedbackErr.stack);
