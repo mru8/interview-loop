@@ -66,6 +66,7 @@ export async function POST(request) {
         maxDurationSeconds: 900,
         serverUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/vapi`,
         serverUrlSecret: sessionId.toString(),
+        endCallPhrases: ["interview is complete", "that concludes our interview", "thank you for your time today"],
       }),
     });
 
