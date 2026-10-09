@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import Vapi from '@vapi-ai/web';
 
 export default function InterviewPage() {
@@ -9,6 +10,13 @@ export default function InterviewPage() {
   const [error, setError] = useState('');
   const vapiRef = useRef(null);
   const sessionIdRef = useRef(null);
+  const callStartedRef = useRef(false);
+
+  // move from connecting to active, but never undo an ended call
+  const markActive = () => {
+    callStartedRef.current = true;
+    setStatus((s) => (s === 'connecting' ? 'active' : s));
+  };
 
   const startInterview = async () => {
     // unlock audio playback immediately on click, before any async gap
@@ -18,10 +26,12 @@ export default function InterviewPage() {
         await audioCtx.resume();
       }
     } catch (e) {
-      console.log('Audio unlock faileed (non-critical):', e);
+      console.log('Audio unlock failed (non-critical):', e);
     }
-    
+
     setError('');
+    setTranscript([]);
+    callStartedRef.current = false;
     setStatus('connecting');
 
     try {
@@ -32,7 +42,6 @@ export default function InterviewPage() {
         return;
       }
 
-      // 2. Hit your start-session API
       const res = await fetch('/api/sessions/start', {
         method: 'POST',
         headers: {
@@ -50,20 +59,20 @@ export default function InterviewPage() {
       const { sessionId, assistantId, publicKey } = data;
       sessionIdRef.current = sessionId;
 
-      // 3. Initialize Vapi client
       const vapi = new Vapi(publicKey);
       vapiRef.current = vapi;
 
-      // 4. Set up event listeners
-      vapi.on('call-start', () => {
-        setStatus('active');
-      });
+      vapi.on('call-start', markActive);
+      vapi.on('speech-start', markActive);
 
       vapi.on('call-end', () => {
         setStatus('ended');
       });
 
       vapi.on('message', (message) => {
+        if (message.type === 'transcript') {
+          markActive();
+        }
         if (message.type === 'transcript' && message.transcriptType === 'final') {
           setTranscript((prev) => [
             ...prev,
@@ -74,12 +83,19 @@ export default function InterviewPage() {
 
       vapi.on('error', (e) => {
         console.error('Vapi error:', e);
+        const msg = e?.message || e?.errorMsg || e?.error?.message || '';
+
+        if (callStartedRef.current && (!msg || /eject|meeting has ended|ended/i.test(msg))){
+          setStatus('ended');
+          return;
+        }
         setError('Voice call error: ' + (e?.message || 'unknown'));
         setStatus('idle');
       });
 
-      // 5. Start the call
       await vapi.start(assistantId);
+      // start() resolved, so the call is connected
+      markActive();
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -112,7 +128,14 @@ export default function InterviewPage() {
         </button>
       )}
 
-      {status === 'connecting' && <p>Connecting to your interviewer...</p>}
+      {status === 'connecting' && (
+        <div>
+          <p>Connecting to your interviewer...</p>
+          <button onClick={endInterview} style={{ ...btnStyle, background: '#d32f2f' }}>
+            End Interview
+          </button>
+        </div>
+      )}
 
       {status === 'active' && (
         <div>
@@ -126,7 +149,7 @@ export default function InterviewPage() {
       {status === 'ended' && (
         <div>
           <p>Interview ended. Thanks!</p>
-          <p>Session ID: {sessionIdRef.current}</p>
+          <Link href={`/dashboard/${sessionIdRef.current}`}>View your feedback</Link>
         </div>
       )}
 

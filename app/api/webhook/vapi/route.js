@@ -5,7 +5,50 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+// tries the first model, then falls back to the others if Google is busy
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function callGemini(prompt) {
+  let last = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const model = GEMINI_MODELS[attempt % GEMINI_MODELS.length];
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json' },
+          }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok) return { ok: true, data };
+
+      last = data;
+      console.error(`Gemini ${model} attempt ${attempt + 1} failed:`, data?.error?.message);
+      // only retry on "model gone" or "busy" type errors
+      if (![404, 429, 500, 503].includes(res.status)) break;
+    } catch (e) {
+      last = { error: { message: e.message } };
+      console.error(`Gemini ${model} attempt ${attempt + 1} threw:`, e.message);
+    }
+    await sleep(1000 * (attempt + 1));
+  }
+  return { ok: false, data: last };
+}
+
 export async function POST(request) {
+  // only Vapi knows this secret, so random requests get rejected here
+  const secret = request.headers.get('x-vapi-secret');
+  if (!process.env.WEBHOOK_SECRET || secret !== process.env.WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const message = body.message;
@@ -14,14 +57,20 @@ export async function POST(request) {
       return NextResponse.json({ received: true });
     }
 
-    const sessionId = request.headers.get('x-vapi-secret');
+    const sessionId = parseInt(new URL(request.url).searchParams.get('sessionId'), 10);
 
     if (message.type === 'end-of-call-report') {
-      if (sessionId) {
-        await pool.query(
-          `UPDATE sessions SET status = 'completed', ended_at = NOW() WHERE id = $1`,
+      if (!Number.isNaN(sessionId)) {
+        // only the first end-of-call report for a session gets processed
+        const updated = await pool.query(
+          `UPDATE sessions SET status = 'completed', ended_at = NOW()
+           WHERE id = $1 AND status IS DISTINCT FROM 'completed'
+           RETURNING id`,
           [sessionId]
         );
+        if (updated.rowCount === 0) {
+          return NextResponse.json({ received: true });
+        }
 
         // pull full conversation from the artifact, skip the system prompt
         const fullMessages = message.artifact?.messages || [];
@@ -56,20 +105,9 @@ Return ONLY valid JSON, no markdown, no code fences, in this exact shape:
 Transcript:
 ${conversation}`;
 
-            const geminiRes = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: feedbackPrompt }] }],
-                }),
-              }
-            );
+            const { ok, data: geminiData } = await callGemini(feedbackPrompt);
 
-            const geminiData = await geminiRes.json();
-
-            if (geminiRes.ok) {
+            if (ok) {
               let raw = geminiData.candidates[0].content.parts[0].text.trim();
               raw = raw.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
               const feedback = JSON.parse(raw);
@@ -80,7 +118,7 @@ ${conversation}`;
                 [sessionId, feedback.summary, feedback.strengths, feedback.weaknesses, feedback.score]
               );
             } else {
-              console.error('Gemini feedback generation failed:', geminiData);
+              console.error('Gemini feedback generation failed after retries:', geminiData);
             }
           } catch (feedbackErr) {
             console.error('FEEDBACK GENERATION ERROR:', feedbackErr.message, feedbackErr.stack);

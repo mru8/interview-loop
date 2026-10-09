@@ -30,8 +30,13 @@ export async function POST(request) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
+    
+    let userId;
+    try {
+      userId = jwt.verify(token, process.env.JWT_SECRET).userId;
+    } catch (e) {
+      return NextResponse.json({ error: 'Invalid or expired token'}, { status: 401 });
+    }
 
     // create session in DB
     const sessionResult = await pool.query(
@@ -64,8 +69,8 @@ export async function POST(request) {
         firstMessage: "Hi there! I'm Alex, and I'll be conducting your behavioral interview today. We'll walk through a few past experiences - let's get started. Can you tell me about a time you faced a significant challenge at work and how you handled it?",
         silenceTimeoutSeconds: 60,
         maxDurationSeconds: 900,
-        serverUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/vapi`,
-        serverUrlSecret: sessionId.toString(),
+        serverUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhook/vapi?sessionId=${sessionId}`,
+        serverUrlSecret: process.env.WEBHOOK_SECRET,
         endCallPhrases: ["interview is complete", "that concludes our interview", "thank you for your time today"],
       }),
     });
