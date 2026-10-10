@@ -1,9 +1,11 @@
 import { Pool } from 'pg';
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
+
 export const maxDuration = 60;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 1,
 });
 
 // tries the first model, then falls back to the others if Google is busy
@@ -13,7 +15,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function callGemini(prompt) {
   let last = null;
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     const model = GEMINI_MODELS[attempt % GEMINI_MODELS.length];
     try {
       const res = await fetch(
@@ -25,6 +27,8 @@ async function callGemini(prompt) {
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { responseMimeType: 'application/json' },
           }),
+          // don't let one slow attempt eat the whole function time
+          signal: AbortSignal.timeout(15000),
         }
       );
       const data = await res.json();
@@ -41,6 +45,42 @@ async function callGemini(prompt) {
     await sleep(1000 * (attempt + 1));
   }
   return { ok: false, data: last };
+}
+
+async function generateFeedback(sessionId, conversation) {
+  try {
+    const feedbackPrompt = `You are reviewing a behavioral job interview transcript. Based on the conversation below, provide structured feedback.
+
+Return ONLY valid JSON, no markdown, no code fences, in this exact shape:
+{
+  "summary": "2-3 sentence overall summary of how the candidate performed",
+  "strengths": "1-2 sentences on what the candidate did well",
+  "weaknesses": "1-2 sentences on what the candidate could improve",
+  "score": <integer 1-10, overall interview performance>
+}
+
+Transcript:
+${conversation}`;
+
+    const { ok, data: geminiData } = await callGemini(feedbackPrompt);
+
+    if (!ok) {
+      console.error('Gemini feedback generation failed after retries:', geminiData);
+      return;
+    }
+
+    let raw = geminiData.candidates[0].content.parts[0].text.trim();
+    raw = raw.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
+    const feedback = JSON.parse(raw);
+
+    await pool.query(
+      `INSERT INTO feedback (session_id, summary, strengths, weaknesses, score)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [sessionId, feedback.summary, feedback.strengths, feedback.weaknesses, feedback.score]
+    );
+  } catch (err) {
+    console.error('FEEDBACK GENERATION ERROR:', err.message, err.stack);
+  }
 }
 
 export async function POST(request) {
@@ -60,73 +100,46 @@ export async function POST(request) {
 
     const sessionId = parseInt(new URL(request.url).searchParams.get('sessionId'), 10);
 
-    if (message.type === 'end-of-call-report') {
-      if (!Number.isNaN(sessionId)) {
-        // only the first end-of-call report for a session gets processed
-        const updated = await pool.query(
-          `UPDATE sessions SET status = 'completed', ended_at = NOW()
-           WHERE id = $1 AND status IS DISTINCT FROM 'completed'
-           RETURNING id`,
-          [sessionId]
+    if (message.type === 'end-of-call-report' && !Number.isNaN(sessionId)) {
+      // only the first end-of-call report for a session gets processed
+      const updated = await pool.query(
+        `UPDATE sessions SET status = 'completed', ended_at = NOW()
+         WHERE id = $1 AND status IS DISTINCT FROM 'completed'
+         RETURNING id`,
+        [sessionId]
+      );
+      if (updated.rowCount === 0) {
+        return NextResponse.json({ received: true });
+      }
+
+      const turns = (message.artifact?.messages || []).filter(
+        (m) => (m.role === 'bot' || m.role === 'user') && m.message
+      );
+
+      // save the whole transcript in one query instead of one per line
+      if (turns.length > 0) {
+        await pool.query(
+          `INSERT INTO transcripts (session_id, role, message)
+           SELECT $1, t.role, t.message
+           FROM unnest($2::text[], $3::text[]) AS t(role, message)`,
+          [
+            sessionId,
+            turns.map((m) => (m.role === 'bot' ? 'ai' : 'candidate')),
+            turns.map((m) => m.message),
+          ]
         );
-        if (updated.rowCount === 0) {
-          return NextResponse.json({ received: true });
-        }
+      }
 
-        // pull full conversation from the artifact, skip the system prompt
-        const fullMessages = message.artifact?.messages || [];
-        const conversation = fullMessages
-          .filter((m) => m.role === 'bot' || m.role === 'user')
-          .map((m) => `${m.role === 'bot' ? 'Interviewer' : 'Candidate'}: ${m.message}`)
-          .join('\n');
+      const conversation = turns
+        .map((m) => `${m.role === 'bot' ? 'Interviewer' : 'Candidate'}: ${m.message}`)
+        .join('\n');
+      const candidateSpoke = turns.some((m) => m.role === 'user');
 
-        // also save each turn into transcripts table for record-keeping
-        for (const m of fullMessages) {
-          if (m.role === 'bot' || m.role === 'user') {
-            const role = m.role === 'bot' ? 'ai' : 'candidate';
-            await pool.query(
-              `INSERT INTO transcripts (session_id, role, message) VALUES ($1, $2, $3)`,
-              [sessionId, role, m.message]
-            );
-          }
-        }
-
-        if (conversation.trim().length > 0) {
-          try {
-            const feedbackPrompt = `You are reviewing a behavioral job interview transcript. Based on the conversation below, provide structured feedback.
-
-Return ONLY valid JSON, no markdown, no code fences, in this exact shape:
-{
-  "summary": "2-3 sentence overall summary of how the candidate performed",
-  "strengths": "1-2 sentences on what the candidate did well",
-  "weaknesses": "1-2 sentences on what the candidate could improve",
-  "score": <integer 1-10, overall interview performance>
-}
-
-Transcript:
-${conversation}`;
-
-            const { ok, data: geminiData } = await callGemini(feedbackPrompt);
-
-            if (ok) {
-              let raw = geminiData.candidates[0].content.parts[0].text.trim();
-              raw = raw.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
-              const feedback = JSON.parse(raw);
-
-              await pool.query(
-                `INSERT INTO feedback (session_id, summary, strengths, weaknesses, score)
-                 VALUES ($1, $2, $3, $4, $5)`,
-                [sessionId, feedback.summary, feedback.strengths, feedback.weaknesses, feedback.score]
-              );
-            } else {
-              console.error('Gemini feedback generation failed after retries:', geminiData);
-            }
-          } catch (feedbackErr) {
-            console.error('FEEDBACK GENERATION ERROR:', feedbackErr.message, feedbackErr.stack);
-          }
-        } else {
-          console.error('CONVERSATION EMPTY, artifact messages:', JSON.stringify(fullMessages));
-        }
+      if (!candidateSpoke) {
+        console.error('No candidate answers in session', sessionId, '- skipping feedback');
+      } else {
+        // reply to Vapi right away, build the report after the response is sent
+        after(() => generateFeedback(sessionId, conversation));
       }
     }
 
