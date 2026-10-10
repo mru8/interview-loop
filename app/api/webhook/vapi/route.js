@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { NextResponse } from 'next/server';
+export const maxDuration = 60;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
