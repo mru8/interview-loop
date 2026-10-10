@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-function scoreClass(score) {
-  if (score >= 8) return 'bg-emerald-300';
-  if (score >= 5) return 'bg-yellow-300';
-  return 'bg-rose-300';
+function scoreColor(score) {
+  if (score >= 8) return 'text-emerald-700';
+  if (score >= 5) return 'text-amber-700';
+  return 'text-rose-700';
 }
 
 export default function DashboardPage() {
@@ -39,57 +39,61 @@ export default function DashboardPage() {
   }, [router]);
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-extrabold tracking-tight">Your practice runs</h1>
+    <main className="mx-auto max-w-2xl px-5 py-12">
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-accent">History</p>
+          <h1 className="mt-2 font-semibold text-4xl tracking-tight">Your interviews</h1>
+        </div>
         <Link
           href="/interview"
-          className="rounded-xl border-2 border-zinc-900 bg-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-[3px_3px_0_0_#18181b] transition hover:translate-x-px hover:translate-y-px hover:shadow-[2px_2px_0_0_#18181b]"
+          className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700"
         >
           New interview
         </Link>
       </div>
 
-      {loading && <p className="mt-8 text-sm text-zinc-600">Loading...</p>}
+      {loading && <p className="mt-10 text-sm text-slate-500">Loading...</p>}
       {error && (
-        <p className="mt-6 rounded-xl border-2 border-zinc-900 bg-rose-200 px-3 py-2 text-sm font-medium">
+        <p className="mt-8 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {error}
         </p>
       )}
 
       {!loading && !error && sessions.length === 0 && (
-        <div className="mt-8 rounded-2xl border-2 border-dashed border-zinc-900 bg-white p-10 text-center">
-          <p className="text-lg font-semibold">Nothing here yet.</p>
-          <p className="mt-1 text-sm text-zinc-600">Your first practice run is waiting.</p>
+        <div className="mt-10 rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+          <p className="font-semibold text-2xl">No interviews yet</p>
+          <p className="mt-1 text-sm text-slate-500">Your first one is a few clicks away.</p>
           <Link
             href="/interview"
-            className="mt-4 inline-block rounded-xl border-2 border-zinc-900 bg-yellow-300 px-4 py-2 text-sm font-semibold shadow-[3px_3px_0_0_#18181b]"
+            className="mt-5 inline-block rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700"
           >
-            Start one
+            Start your first interview
           </Link>
         </div>
       )}
 
-      <div className="mt-6 space-y-4">
+      <div className="mt-8 space-y-3">
         {sessions.map((s) => (
           <Link
             key={s.id}
             href={`/dashboard/${s.id}`}
-            className="flex items-center justify-between gap-4 rounded-2xl border-2 border-zinc-900 bg-white px-5 py-4 shadow-[4px_4px_0_0_#18181b] transition hover:translate-x-px hover:translate-y-px hover:shadow-[3px_3px_0_0_#18181b]"
+            className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 transition hover:border-slate-400 hover:shadow-sm"
           >
             <div>
-              <p className="font-bold capitalize">{s.interview_type} interview</p>
-              <p className="text-sm text-zinc-600">
+              <p className="font-medium capitalize">{s.interview_type} interview</p>
+              <p className="mt-0.5 text-sm text-slate-500">
                 {s.started_at ? new Date(s.started_at).toLocaleString() : ''}
               </p>
             </div>
             {s.score != null ? (
-              <span className={`${scoreClass(s.score)} rounded-full border-2 border-zinc-900 px-3 py-1 text-sm font-bold`}>
-                {s.score}/10
-              </span>
+              <p className={`font-semibold text-3xl leading-none ${scoreColor(s.score)}`}>
+                {s.score}
+                <span className="text-base text-slate-400">/10</span>
+              </p>
             ) : (
-              <span className="rounded-full border-2 border-zinc-900 bg-zinc-100 px-3 py-1 text-sm font-medium text-zinc-700">
-                {s.status === 'completed' ? 'Crunching...' : 'Bailed early'}
+              <span className="text-sm text-slate-500">
+                {s.status === 'completed' ? 'Processing...' : 'Unfinished'}
               </span>
             )}
           </Link>

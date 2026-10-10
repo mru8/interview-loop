@@ -4,9 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
-const btn =
-  'rounded-xl border-2 border-zinc-900 bg-violet-500 px-3 py-1.5 text-sm font-semibold text-white shadow-[3px_3px_0_0_#18181b] transition hover:translate-x-px hover:translate-y-px hover:shadow-[2px_2px_0_0_#18181b]';
-
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -22,25 +19,28 @@ export default function Navbar() {
     router.push('/login');
   };
 
-  const link = 'text-sm font-medium text-zinc-700 hover:text-violet-600';
+  const link = 'text-sm text-slate-600 transition hover:text-ink';
+  const pill =
+    'rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700';
 
   return (
-    <header className="border-b-2 border-zinc-900 bg-amber-200">
-      <nav className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-        <Link href="/" className="text-lg font-extrabold tracking-tight text-zinc-900">
-          🎙️ InterviewLoop
+    <header className="sticky top-0 z-10 border-b border-slate-200 bg-paper/80 backdrop-blur">
+      <nav className="mx-auto flex max-w-4xl items-center justify-between px-5 py-3.5">
+        <Link href="/" className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-accent" />
+          <span className="text-lg font-semibold leading-none tracking-tight">InterviewLoop</span>
         </Link>
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-6">
           {loggedIn ? (
             <>
-              <Link href="/dashboard" className={link}>My runs</Link>
-              <Link href="/interview" className={btn}>New interview</Link>
+              <Link href="/dashboard" className={link}>History</Link>
               <button onClick={logout} className={link}>Log out</button>
+              <Link href="/interview" className={pill}>New interview</Link>
             </>
           ) : (
             <>
               <Link href="/login" className={link}>Log in</Link>
-              <Link href="/signup" className={btn}>Sign up</Link>
+              <Link href="/signup" className={pill}>Get started</Link>
             </>
           )}
         </div>

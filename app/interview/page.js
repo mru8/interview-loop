@@ -4,10 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Vapi from '@vapi-ai/web';
 
-const btnBase =
-  'rounded-xl border-2 border-zinc-900 px-5 py-2.5 text-sm font-semibold shadow-[3px_3px_0_0_#18181b] transition hover:translate-x-px hover:translate-y-px hover:shadow-[2px_2px_0_0_#18181b]';
-const primaryBtn = `${btnBase} bg-violet-500 text-white`;
-const dangerBtn = `${btnBase} bg-rose-500 text-white`;
+const pill =
+  'rounded-full px-5 py-2.5 text-sm font-medium text-white transition';
+const primaryBtn = `${pill} bg-ink hover:bg-slate-700`;
+const dangerBtn = `${pill} bg-red-700 hover:bg-red-800`;
 
 export default function InterviewPage() {
   const [status, setStatus] = useState('idle'); // idle | connecting | active | ended
@@ -131,35 +131,37 @@ export default function InterviewPage() {
   }, [transcript]);
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-3xl font-extrabold tracking-tight">Behavioral interview</h1>
-      <p className="mt-1 text-sm text-zinc-600">
-        You'll chat with Alex out loud. Allow your mic when the browser asks. Calls cap at 15 minutes.
+    <main className="mx-auto max-w-2xl px-5 py-12">
+      <p className="text-xs uppercase tracking-[0.2em] text-accent">Behavioral</p>
+      <h1 className="mt-2 font-semibold text-4xl tracking-tight">Mock interview</h1>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+        You'll talk with Alex out loud. Allow your microphone when the browser asks.
+        Calls are capped at 15 minutes.
       </p>
 
-      <div className="mt-6 rounded-2xl border-2 border-zinc-900 bg-white p-6 shadow-[4px_4px_0_0_#18181b]">
+      <div className="mt-7 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         {status === 'idle' && (
           <div className="flex items-center justify-between gap-4">
-            <p className="text-sm font-medium text-zinc-700">Take a breath. Hit start when you're ready.</p>
+            <p className="text-sm text-slate-600">Find a quiet spot, then start when you're ready.</p>
             <button onClick={startInterview} className={primaryBtn}>
-              Start
+              Start interview
             </button>
           </div>
         )}
 
         {status === 'connecting' && (
           <div className="flex items-center justify-between gap-4">
-            <p className="animate-pulse text-sm font-medium text-zinc-700">Calling Alex...</p>
+            <p className="animate-pulse text-sm text-slate-600">Connecting to your interviewer...</p>
             <button onClick={endInterview} className={dangerBtn}>
-              Hang up
+              Cancel
             </button>
           </div>
         )}
 
         {status === 'active' && (
           <div className="flex items-center justify-between gap-4">
-            <p className="flex items-center gap-2 text-sm font-semibold text-zinc-800">
-              <span className="h-3 w-3 animate-pulse rounded-full border-2 border-zinc-900 bg-rose-500" />
+            <p className="flex items-center gap-2.5 text-sm font-medium">
+              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-accent" />
               Live. Alex is listening.
             </p>
             <button onClick={endInterview} className={dangerBtn}>
@@ -170,34 +172,32 @@ export default function InterviewPage() {
 
         {status === 'ended' && (
           <div className="flex items-center justify-between gap-4">
-            <p className="text-sm font-semibold text-zinc-800">That's a wrap! Nice one. 🎉</p>
+            <p className="text-sm text-slate-600">Interview complete. Nice work.</p>
             <Link href={`/dashboard/${sessionIdRef.current}`} className={primaryBtn}>
-              See how you did
+              View your report
             </Link>
           </div>
         )}
 
         {error && (
-          <p className="mt-4 rounded-xl border-2 border-zinc-900 bg-rose-200 px-3 py-2 text-sm font-medium">
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
             {error}
           </p>
         )}
       </div>
 
-      <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-zinc-600">
-        Live transcript
-      </h2>
-      <div className="mt-3 space-y-3">
+      <h2 className="mt-10 text-xs uppercase tracking-[0.18em] text-slate-500">Live transcript</h2>
+      <div className="mt-4 space-y-3">
         {transcript.length === 0 && (
-          <p className="text-sm text-zinc-500">Your conversation will show up here.</p>
+          <p className="text-sm text-slate-400">The conversation will appear here.</p>
         )}
         {transcript.map((t, i) => {
           const isAi = t.role === 'assistant';
           return (
             <div key={i} className={`flex ${isAi ? 'justify-start' : 'justify-end'}`}>
               <div
-                className={`max-w-[85%] rounded-2xl border-2 border-zinc-900 px-4 py-2 text-sm ${
-                  isAi ? 'bg-sky-200 text-zinc-900' : 'bg-violet-500 text-white'
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                  isAi ? 'border border-slate-200 bg-white' : 'bg-ink text-white'
                 }`}
               >
                 {t.text}
