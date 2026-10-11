@@ -3,7 +3,7 @@
 Practice behavioral interviews out loud with a voice AI interviewer, then get a scored feedback report.
 
 **Live demo:** https://interview-loop-one.vercel.app
-**Demo video:** _add link here_
+<!-- **Demo video:** _add link here_ -->
 
 > Each account gets 3 practice interviews. A microphone is required.
 
