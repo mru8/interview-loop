@@ -39,22 +39,11 @@ export default function DashboardPage() {
   }, [router]);
 
   return (
-    <main className="mx-auto max-w-2xl px-5 py-12">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-accent">History</p>
-          <h1 className="mt-2 font-semibold text-4xl tracking-tight">Your interviews</h1>
-        </div>
-        {sessions.length > 0 && (
-          <Link
-            href="/interview"
-            className="self-start rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 sm:self-auto"
-          >
-            New interview
-          </Link>
-        )}
+    <main className="mx-auto w-full max-w-2xl px-5 py-12">
+      <div>
+        <p className="text-xs uppercase tracking-[0.2em] text-accent">History</p>
+        <h1 className="mt-2 font-semibold text-4xl tracking-tight">Your interviews</h1>
       </div>
-
       {loading && <p className="mt-10 text-sm text-slate-500">Loading...</p>}
       {error && (
         <p className="mt-8 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
