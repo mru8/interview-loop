@@ -2,6 +2,9 @@ import { Pool } from 'pg';
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 
+const MAX_INTERVIEWS = parseInt(process.env.MAX_INTERVIEWS_PER_USER || '3', 10);
+const UNLIMITED_IDS = (process.env.UNLIMITED_USER_IDS || '').split(',').map((s) => s.trim());
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
@@ -39,12 +42,20 @@ export async function POST(request) {
     }
 
     // create session in DB
+    const limit = UNLIMITED_IDS.includes(String(userId)) ? 1000000 : MAX_INTERVIEWS;
     const sessionResult = await pool.query(
       `INSERT INTO sessions (user_id, interview_type, status)
-       VALUES ($1, $2, $3)
-       RETURNING id`,
-      [userId, 'behavioral', 'in_progress']
+      SELECT $1::int, $2::varchar, $3::varchar
+      WHERE (SELECT COUNT(*) FROM sessions WHERE user_id = $1::int) < $4::int
+      RETURNING id`,
+      [userId, 'behavioral', 'in_progress', limit]
     );
+    if (sessionResult.rowCount === 0) {
+      return NextResponse.json(
+        { error: `You've used all ${MAX_INTERVIEWS} practice interviews on this account.`},
+        { status: 429}
+      );
+    }
     const sessionId = sessionResult.rows[0].id;
 
     // create the Vapi assistant config for this session
@@ -79,6 +90,7 @@ export async function POST(request) {
 
     if (!vapiResponse.ok) {
       console.error('Vapi assistant creation failed:', vapiData);
+      await pool.query(`DELETE FROM sessions WHERE id = $1`, [sessionId]);
       return NextResponse.json({ error: 'Failed to create interview assistant' }, { status: 500 });
     }
 
