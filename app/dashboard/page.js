@@ -40,17 +40,19 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-5 py-12">
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-accent">History</p>
           <h1 className="mt-2 font-semibold text-4xl tracking-tight">Your interviews</h1>
         </div>
-        <Link
-          href="/interview"
-          className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700"
-        >
-          New interview
-        </Link>
+        {sessions.length > 0 && (
+          <Link
+            href="/interview"
+            className="self-start rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 sm:self-auto"
+          >
+            New interview
+          </Link>
+        )}
       </div>
 
       {loading && <p className="mt-10 text-sm text-slate-500">Loading...</p>}
