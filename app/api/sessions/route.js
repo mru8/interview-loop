@@ -23,6 +23,8 @@ export async function GET(request) {
   try {
     const { rows } = await pool.query(
       `SELECT s.id, s.interview_type, s.status, s.started_at, s.ended_at,
+              (s.ended_at IS NOT NULL AND s.ended_at > NOW() - INTERVAL '3 minutes') AS processing,
+              (s.ended_at IS NULL AND s.started_at > NOW() - INTERVAL '20 minutes') AS live,
               (SELECT score FROM feedback WHERE session_id = s.id ORDER BY id DESC LIMIT 1) AS score
        FROM sessions s
        WHERE s.user_id = $1

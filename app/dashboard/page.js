@@ -95,7 +95,7 @@ export default function DashboardPage() {
               </p>
             ) : (
               <span className="text-sm text-slate-500">
-                {s.status === 'completed' ? 'Processing...' : 'Unfinished'}
+                {s.processing ? 'Processing...' : s.live ? 'In progress' : 'No report'}
               </span>
             )}
           </Link>
